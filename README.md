@@ -1,102 +1,155 @@
 # Diabetes Risk Intelligence
 
-> **Try it live:** [diabetes-prediction-v0.streamlit.app](https://diabetes-prediction-v0.streamlit.app)
+> **Live (new):** [diabetes-prediction.vercel.app](https://diabetes-prediction.vercel.app)
+> **Live (legacy v1):** [diabetes-prediction-v0.streamlit.app](https://diabetes-prediction-v0.streamlit.app)
 
-A diabetes risk screening tool that combines clinical rules (ADA 2026, AHA-ACC 2025) with a machine learning model (PIMA Random Forest) to help people understand their health measurements. Built with Python, Streamlit, and scikit-learn.
+A diabetes risk screening platform that combines clinical rules (ADA 2026, AHA-ACC 2025) with a machine learning model (PIMA Random Forest + XGBoost ensemble) to help people understand their health measurements. Built as a **Next.js + FastAPI monorepo** and deployed on **Vercel**.
+
+> ⚠️ **Screening and education only — not a medical diagnosis.** Always confirm results with a clinician.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                          Vercel (single deploy)                 │
+│                                                                 │
+│   ┌──────────────────────┐        ┌──────────────────────┐      │
+│   │  Next.js 14 (App)    │  HTTPS │  FastAPI (Python)    │      │
+│   │  React 18 + Tailwind │◄──────►│  Serverless Functions│      │
+│   │  shadcn/ui, PWA      │        │  /api/python/*       │      │
+│   └──────────┬───────────┘        └──────────┬───────────┘      │
+│              │                               │                  │
+│              │ Clerk (auth)                  │ asyncpg          │
+│              ▼                               ▼                  │
+│      ┌──────────────┐               ┌──────────────────┐        │
+│      │  Clerk       │               │  Neon Postgres   │        │
+│      │  (10k MAU)   │               │  (0.5 GB free)   │        │
+│      └──────────────┘               └──────────────────┘        │
+│                                              │                  │
+│                                     ┌────────▼────────┐         │
+│                                     │ Upstash Redis   │         │
+│                                     │ (rate limiting) │         │
+│                                     └─────────────────┘         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Total cost: $0/month** on free tiers (Vercel Hobby, Neon, Clerk, Upstash).
 
 ---
 
 ## Version History
 
-### v1.0 — Core Screening Engine
-*Initial release*
+### v3.0 — Vercel Rewrite (current)
+*Next.js + FastAPI monorepo*
 
-- **Quick Health Check** — enter glucose, blood pressure, BMI, lipids → instant clinical screening
-- **Medical Report Upload** — OCR reads PDF/lab reports, AI validates values
-- **AI Clinical Assistant** — ask questions about diabetes, BP, lifestyle
-- **Clinical rules engine** — ADA 2026 glucose thresholds, AHA/ACC 2025 BP guidelines
-- **PIMA Random Forest model** — 77.9% accuracy, supplementary risk score
-- **Offline-capable** — clinical rules run locally, AI only explains results
-
-### v1.1 — UI/UX Overhaul
-*Task-oriented redesign*
-
-- **Task-oriented landing page** — 3 entry points (Check, Upload, Ask AI)
-- **Step-by-step progress indicator** — 1→2→3 flow in Health Check
-- **Measurement result cards** — value + unit + interpretation + source
-- **OCR confidence indicators** — green/yellow/red per field
-- **Editable report review** — correct OCR mistakes before assessment
-- **Completeness bar** — visual progress of measured vs missing values
-- **Micro-explanations** — 💬 why under each result
-- **Emergency banner** — red banner for urgent symptoms
-- **Suggested prompts** — clickable AI chat starters
-- **Download summary** — plain-text screening report
-- **Mobile-responsive** — stacked layout, scaled fonts
-- **Focus-visible outlines** — keyboard accessibility
-- **Empty states** — friendly placeholders
-- **Graceful error handling** — clear AI failure messages
-
-### v1.2 — Clinical Accuracy
-*Blood pressure & red flags*
-
-- **Single blood pressure input** — supports `120/80` and `120\80` formats
-- **Independent SBP/DBP OR-logic** — Stage 2 if either number is high
-- **Hypertensive emergency detection** — BP + symptoms = urgent escalation
-- **Red-flag engine** — glucose 400+, emergency BP, critical values
-- **Source citations** — ADA 2026, AHA-ACC 2025 on every measurement
-- **19 edge-case tests** — clinical rules fully tested
-
-### v1.3 — AI & Accessibility
-*AI reliability & user experience*
-
-- **Resilient AI module binding** — app works even if AI module fails to load
-- **Offline AI fallback** — clear "unavailable" message instead of crash
-- **AI timeout increase** — 30s timeout with 2 retries
-- **Graceful provider errors** — AuthenticationError, NotFoundError handled
-- **Multi-provider support** — OpenRouter, Google Gemini, DeepSeek, Qwen, Kimi
-- **CSS animation removal** — no hover effects, transitions, or keyframes
-
-### v1.4 — Health Score & Sharing
-*Scoring & export*
-
-- **Health Score (0-100)** — single number combining all metrics
-- **SVG circular gauge** — animated visual risk indicator
-- **Shareable Health Card** — text export with all results
-- **PDF Report Export** — clean one-page clinical screening PDF
-- **Print-friendly CSS** — hides sidebar/buttons on Ctrl+P
-
-### v1.5 — Unit Converter & Dark Mode
-*User preferences*
-
-- **Blood sugar unit converter** — toggle mg/dL ↔ mmol/L
-- **Glucose values auto-convert** — input in either unit, results show correctly
-- **Dark mode toggle** — 🌙 switch between light and dark themes
-- **Auto-save results** — screening saved to local history
+- **Next.js 14 frontend** — App Router, React 18, TypeScript strict, Tailwind CSS, shadcn/ui
+- **FastAPI backend** — Python serverless functions on Vercel
+- **User accounts & history** — Clerk auth + Neon Postgres persistence
+- **Real-time device sync** — Apple HealthKit, Google Fit, CGM (Dexcom/Libre) webhooks
+- **Offline PWA** — service worker, IndexedDB queue, background sync
+- **Advanced risk modeling** — SHAP explanations, RF+XGBoost ensemble, uncertainty bands
+- **Third-party API** — scoped API keys, rate limiting, webhooks
+- **FHIR/CDA export** — standards-compliant EHR integration
+- **Automated retraining** — weekly GitHub Action pipeline
+- **Feature flags** — gradual rollout control
 
 ### v2.0 — Advanced Medical Features
 *15 new clinical tools*
 
-- **A1C ↔ Average Glucose Converter** — "What does 7.2% mean?" (eAG formula: 28.7×A1C − 46.7)
-- **Risk Stratification** — Low / Medium / High / Very High categories
-- **Follow-up Schedule** — when to retest (1-2 weeks, 3-6 months, 12 months)
-- **Emergency Protocols** — actionable steps for hypoglycemia, hyperglycemia, hypertensive crisis
-- **Family History Risk Factor** — parent/sibling diabetes history assessment
-- **Complication Risk Calculator** — cardiovascular, neuropathy, nephropathy, retinopathy risk
-- **Lifestyle Recommendations** — personalized diet, exercise, weight tips
-- **Medication Impact Warnings** — 14 medications checked (steroids, NSAIDs, etc.)
-- **Comorbidity Assessment** — multi-condition risk multiplier
-- **What If Simulator** — sliders to see how changes affect risk
-- **Gestational Diabetes Module** — ACOG 2024 thresholds for pregnancy
-- **Pediatric Considerations** — adjusted interpretation for children <18
-- **Elderly Adjustments** — relaxed targets for adults >65
-- **Previous Report Comparison** — compare current vs past results
-- **Risk Factor Breakdown** — which factor contributes most to risk
+- A1C ↔ Average Glucose Converter, Risk Stratification, Follow-up Schedule
+- Emergency Protocols, Family History, Complication Risks
+- Lifestyle Recommendations, Medication Impacts, Comorbidity Assessment
+- What-If Simulator, Gestational Diabetes, Pediatric/Elderly Adjustments
+- Previous Report Comparison, Risk Factor Breakdown
+
+### v1.5 — Unit Converter & Dark Mode
+### v1.4 — Health Score & Sharing
+### v1.3 — AI & Accessibility
+### v1.2 — Clinical Accuracy
+### v1.1 — UI/UX Overhaul
+### v1.0 — Core Screening Engine
+
+---
+
+## Project Structure
+
+```
+diabetes-prediction/
+├── app/                          # Next.js 14 frontend
+│   ├── src/
+│   │   ├── app/                  # App Router pages
+│   │   │   ├── (auth)/           # Landing + auth pages
+│   │   │   ├── (dashboard)/      # Protected app routes
+│   │   │   │   ├── screening/    # 3-step health check
+│   │   │   │   ├── history/      # Paginated history + detail
+│   │   │   │   ├── devices/      # Device connections
+│   │   │   │   ├── settings/     # Preferences + API keys
+│   │   │   │   └── api-docs/     # Third-party API reference
+│   │   │   ├── api/              # Next.js API routes (proxy)
+│   │   │   ├── layout.tsx        # Root layout
+│   │   │   └── globals.css       # Tailwind + medical palette
+│   │   ├── components/
+│   │   │   ├── ui/               # shadcn/ui primitives
+│   │   │   ├── screening/        # Screening components
+│   │   │   ├── charts/           # Recharts wrappers
+│   │   │   └── pdf/              # @react-pdf/renderer
+│   │   ├── lib/                  # api.ts, auth.ts, validation/
+│   │   ├── hooks/                # Custom React hooks
+│   │   ├── store/                # Zustand (offline, UI)
+│   │   └── types/                # OpenAPI-generated types
+│   ├── next.config.js            # next-pwa config
+│   └── tailwind.config.ts
+│
+├── api/
+│   └── python/                   # FastAPI backend
+│       ├── main.py               # App entry + lifespan
+│       ├── config.py             # Pydantic Settings
+│       ├── routes/
+│       │   ├── screening.py      # POST /screening
+│       │   ├── health_score.py   # POST /health-score
+│       │   ├── ml_inference.py   # POST /ml/predict
+│       │   ├── pdf_export.py     # POST /export/pdf
+│       │   ├── history.py        # GET /history
+│       │   ├── devices.py        # Device webhooks + sync
+│       │   └── third_party.py    # API keys + rate limits
+│       ├── models/               # Pydantic v2 models
+│       ├── services/
+│       │   ├── clinical_rules.py # Clinical engine (pure Python)
+│       │   ├── ml_model.py       # RF + XGBoost + SHAP
+│       │   ├── pdf_generator.py  # reportlab
+│       │   ├── device_sync.py    # HealthKit/Fit/CGM
+│       │   ├── risk_engine.py    # Ensemble + uncertainty
+│       │   └── fhir_export.py    # FHIR R4 / CDA
+│       ├── db/
+│       │   ├── connection.py     # asyncpg pool
+│       │   ├── migrations/       # Alembic
+│       │   └── repositories/
+│       ├── auth/clerk.py         # JWT verification
+│       └── requirements.txt
+│
+├── packages/
+│   └── shared-types/             # OpenAPI → TypeScript
+│
+├── .github/workflows/
+│   ├── ci.yml                    # lint, typecheck, test, build
+│   ├── deploy-preview.yml        # Vercel preview on PR
+│   └── deploy-prod.yml           # Vercel prod on merge
+│
+├── docs/superpowers/specs/       # Design specs
+├── .Codex/plans/                 # Implementation plans
+├── docker-compose.yml            # Local Postgres + Redis
+├── turbo.json                    # Turborepo pipeline
+├── vercel.json                   # Vercel config
+└── package.json                  # Root workspace
+```
 
 ---
 
 ## Clinical Rules Engine
 
-Every verdict comes from a single, transparent, offline rules layer (`src/clinical_rules.py`), not from the LLM.
+Every verdict comes from a single, transparent, offline rules layer (`api/python/services/clinical_rules.py`), not from the LLM.
 
 - **Glucose** — measurement-type aware (fasting, post-meal, HbA1c, OGTT, random) with ADA 2026 thresholds
 - **Blood pressure** — independent SBP/DBP OR-logic (AHA/ACC 2025)
@@ -113,51 +166,173 @@ Every verdict comes from a single, transparent, offline rules layer (`src/clinic
 | Logistic Regression | 70.8% | 60.0% | 50.0% | 0.55 |
 | SVM (tuned) | 74.0% | 65.2% | 55.6% | 0.60 |
 | **Random Forest (tuned)** | **77.9%** | **71.7%** | **61.1%** | **0.66** |
-
-This is screening, not diagnosis. A positive result means "worth confirming with a clinician."
+| **Ensemble (RF + XGB + LR)** | *pending* | *pending* | *pending* | *pending* |
 
 ---
 
 ## How to Run
 
+### Prerequisites
+
+- Node.js 20+
+- Python 3.11+
+- Docker (for local Postgres + Redis)
+
+### 1. Install dependencies
+
 ```bash
-pip install -r requirements.txt
-python -m streamlit run app.py
+npm install                    # installs all workspaces
+cd api/python && pip install -r requirements.txt
 ```
 
-Open http://localhost:8501
+### 2. Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Required variables:
+
+```bash
+# Database (Neon)
+DATABASE_URL=postgresql://user:pass@host/db
+
+# Clerk auth
+CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+CLERK_ISSUER=https://your-app.clerk.accounts.dev
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+
+# Upstash Redis (rate limiting)
+UPSTASH_REDIS_REST_URL=https://...
+UPSTASH_REDIS_REST_TOKEN=...
+
+# ML model
+MODEL_PATH=models/diabetes_rf.joblib
+```
+
+### 3. Start local services
+
+```bash
+docker-compose up -d           # Postgres + Redis
+```
+
+### 4. Run migrations
+
+```bash
+cd api/python
+alembic upgrade head
+```
+
+### 5. Start dev servers
+
+```bash
+# Terminal 1 — FastAPI
+cd api/python && uvicorn main:app --reload --port 8000
+
+# Terminal 2 — Next.js
+cd app && npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) (frontend) or [http://localhost:8000/docs](http://localhost:8000/docs) (API).
 
 ---
 
-## Configuration
+## Deployment (Vercel)
 
-Set these in `.env` (or Streamlit Cloud Secrets):
+### One-time setup
 
 ```bash
-AI_PROVIDER=openrouter
-AI_API_KEY=sk-or-v1-...
-AI_MODEL=deepseek/deepseek-chat-v3-0324:free
+npm i -g vercel
+vercel link                    # link to your Vercel project
 ```
 
-Supported providers: OpenRouter, Google Gemini, DeepSeek, Qwen, Kimi, SiliconFlow, OpenAI.
+### Environment variables
+
+Set in Vercel dashboard or via CLI:
+
+```bash
+vercel env add DATABASE_URL
+vercel env add CLERK_SECRET_KEY
+vercel env add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+vercel env add UPSTASH_REDIS_REST_URL
+vercel env add UPSTASH_REDIS_REST_TOKEN
+```
+
+### Deploy
+
+```bash
+vercel                         # preview deploy
+vercel --prod                  # production deploy
+```
+
+CI/CD is automated: PRs get preview deploys, merges to `main` deploy to production.
 
 ---
 
-## Project Structure
+## API Reference
 
+Auto-generated OpenAPI docs:
+
+- **Local:** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Production:** [https://diabetes-prediction.vercel.app/api-docs](https://diabetes-prediction.vercel.app/api-docs)
+
+### Core endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/screening` | Run full clinical screening |
+| `GET` | `/api/v1/screening/{id}` | Get screening result |
+| `POST` | `/api/v1/health-score` | Calculate 0-100 score |
+| `POST` | `/api/v1/ml/predict` | ML inference + SHAP |
+| `POST` | `/api/v1/export/pdf` | Generate clinical PDF |
+| `GET` | `/api/v1/history` | List user screenings |
+| `GET` | `/api/v1/history/{id}/export?format=fhir` | FHIR R4 export |
+| `GET` | `/api/v1/devices` | List connected devices |
+| `POST` | `/api/v1/third-party/api-keys` | Create API key |
+
+### Third-party authentication
+
+```bash
+curl -H "Authorization: Bearer drk_live_..." \
+  https://diabetes-prediction.vercel.app/api/v1/third-party/history
 ```
-src/
-  ai_agents.py          AI agent layer (all agents + AIClient + offline fallbacks)
-  clinical_rules.py     deterministic clinical engine (15 medical features)
-  ml_risk.py            PIMA Random-Forest inference
-  report_parser.py      reads lab-report PDFs / images (OCR)
-  risk_questionnaire.py FINDRISC lifestyle risk score
-app.py                  Streamlit app
-tests/
-  test_clinical_rules.py  edge-case tests for clinical rules
-  test_ml_risk.py         model loading and prediction tests
-requirements.txt
+
+---
+
+## Testing
+
+```bash
+# Backend
+cd api/python
+pytest tests/ -v --cov=services
+
+# Frontend
+cd app
+npm run lint
+npm run typecheck
+npm run test
+npm run test:e2e
 ```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Next.js 14, React 18, TypeScript, Tailwind CSS, shadcn/ui |
+| State | TanStack Query (server), Zustand (client) |
+| Forms | React Hook Form + Zod |
+| Backend | FastAPI, Pydantic v2, asyncpg |
+| Database | Neon Postgres (serverless) |
+| Auth | Clerk |
+| Rate limiting | Upstash Redis |
+| ML | scikit-learn, XGBoost, SHAP |
+| PDF | reportlab (server), @react-pdf/renderer (client) |
+| PWA | next-pwa (Workbox), idb |
+| Deploy | Vercel (Hobby) |
+| CI/CD | GitHub Actions |
 
 ---
 
