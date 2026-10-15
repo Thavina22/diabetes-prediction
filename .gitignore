@@ -1,6 +1,25 @@
 __pycache__/
 *.pyc
 .env
+.env.local
+.env.*.local
 .freebuff/
 .devcontainer/.agents/
 .devcontainer/.freebuff/
+.Codex/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+.turbo/
+*.tsbuildinfo
+npm-debug.log*
+
+# Generated API schema (checked in artifact is packages/shared-types/src/api.d.ts)
+openapi.json
+
+# Python venvs
+.venv/
+venv/

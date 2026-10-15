@@ -3,7 +3,7 @@
 > **Live (new):** [diabetes-prediction.vercel.app](https://diabetes-prediction.vercel.app)
 > **Live (legacy v1):** [diabetes-prediction-v0.streamlit.app](https://diabetes-prediction-v0.streamlit.app)
 
-A diabetes risk screening platform that combines clinical rules (ADA 2026, AHA-ACC 2025) with a machine learning model (PIMA Random Forest + XGBoost ensemble) to help people understand their health measurements. Built as a **Next.js + FastAPI monorepo** and deployed on **Vercel**.
+A diabetes risk screening platform that combines clinical rules (ADA 2026, AHA-ACC 2025) with a machine learning model (PIMA Gradient Boosting classifier, with a Random Forest + XGBoost ensemble on the roadmap) to help people understand their health measurements. Built as a **Next.js + FastAPI monorepo** and deployed on **Vercel**.
 
 > ⚠️ **Screening and education only — not a medical diagnosis.** Always confirm results with a clinician.
 
@@ -117,7 +117,7 @@ diabetes-prediction/
 │       ├── models/               # Pydantic v2 models
 │       ├── services/
 │       │   ├── clinical_rules.py # Clinical engine (pure Python)
-│       │   ├── ml_model.py       # RF + XGBoost + SHAP
+│       │   ├── ml_model.py       # Gradient Boosting + SHAP
 │       │   ├── pdf_generator.py  # reportlab
 │       │   ├── device_sync.py    # HealthKit/Fit/CGM
 │       │   ├── risk_engine.py    # Ensemble + uncertainty
@@ -161,12 +161,19 @@ Every verdict comes from a single, transparent, offline rules layer (`api/python
 
 ## ML Model Accuracy
 
+> **Deployed model:** the shipped artifact (`data/processed/best_model.joblib`) is a
+> **Gradient Boosting classifier** trained on the PIMA Indians Diabetes Database
+> (768 records, 8 features). It outputs a supplementary risk score only — the
+> clinical rules engine remains the source of truth. A field was also found to be
+> mislabeled historically as "Random Forest"; this table is the model-comparison
+> experiment log, not the deployed artifact.
+
 | Model | Accuracy | Precision | Recall | F1 |
 |-------|----------|-----------|--------|-----|
 | Logistic Regression | 70.8% | 60.0% | 50.0% | 0.55 |
 | SVM (tuned) | 74.0% | 65.2% | 55.6% | 0.60 |
-| **Random Forest (tuned)** | **77.9%** | **71.7%** | **61.1%** | **0.66** |
-| **Ensemble (RF + XGB + LR)** | *pending* | *pending* | *pending* | *pending* |
+| **Gradient Boosting (deployed)** | **77.9%** | **71.7%** | **61.1%** | **0.66** |
+| Ensemble (GB + XGB + LR) | *roadmap* | *roadmap* | *roadmap* | *roadmap* |
 
 ---
 

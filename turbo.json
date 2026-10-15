@@ -1,0 +1,38 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "pipeline": {
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "dist/**"]
+    },
+    "lint": {
+      "outputs": []
+    },
+    "typecheck": {
+      "outputs": []
+    },
+    "test": {
+      "outputs": ["coverage/**"],
+      "dependsOn": []
+    },
+    "test:e2e": {
+      "outputs": [],
+      "dependsOn": ["build"]
+    },
+    "db:push": {
+      "outputs": []
+    },
+    "db:migrate": {
+      "outputs": []
+    },
+    "openapi:generate": {
+      "outputs": ["packages/shared-types/src/**"],
+      "dependsOn": ["api/python#build"]
+    }
+  },
+  "globalEnv": ["DATABASE_URL", "CLERK_SECRET_KEY", "UPSTASH_REDIS_REST_TOKEN"]
+}

@@ -1,0 +1,39 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dri-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dri
+      POSTGRES_PASSWORD: dri_dev_password
+      POSTGRES_DB: dri
+    ports:
+      - "5432:5432"
+    volumes:
+      - dri_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dri -d dri"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: dri-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - dri_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  dri_pgdata:
+  dri_redisdata:

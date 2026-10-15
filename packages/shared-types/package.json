@@ -1,0 +1,14 @@
+{
+  "name": "@shared-types",
+  "version": "2.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "generate": "node ../../scripts/generate-openapi.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

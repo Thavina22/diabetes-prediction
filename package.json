@@ -1,0 +1,25 @@
+{
+  "name": "diabetes-prediction",
+  "version": "2.0.0",
+  "private": true,
+  "workspaces": [
+    "app",
+    "packages/shared-types"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "db:push": "turbo run db:push",
+    "db:migrate": "turbo run db:migrate",
+    "openapi:generate": "node scripts/generate-openapi.js"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.5.0"
+  },
+  "packageManager": "npm@10.8.0"
+}
