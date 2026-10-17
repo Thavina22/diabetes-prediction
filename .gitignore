@@ -16,6 +16,17 @@ dist/
 .turbo/
 *.tsbuildinfo
 npm-debug.log*
+next-env.d.ts
+
+# Logs
+*.log
+
+# Generated PWA service worker assets
+app/public/sw.js
+app/public/sw.js.map
+app/public/workbox-*.js
+app/public/workbox-*.js.map
+app/public/fallback-*.js
 
 # Generated API schema (checked in artifact is packages/shared-types/src/api.d.ts)
 openapi.json

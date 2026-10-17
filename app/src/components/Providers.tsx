@@ -1,9 +1,15 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ClerkProvider } from '@clerk/nextjs';
-import { useState, useEffect } from 'react';
-import { ReactNode } from 'react';
+import { ClerkProvider, useAuth } from '@clerk/nextjs';
+import { useState, type ReactNode } from 'react';
+import { TokenContext, type TokenGetter } from '@/lib/auth-token';
+
+function ClerkTokenBridge({ children }: { children: ReactNode }) {
+  const { getToken } = useAuth();
+  const getter: TokenGetter = () => getToken();
+  return <TokenContext.Provider value={getter}>{children}</TokenContext.Provider>;
+}
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -20,18 +26,25 @@ export function Providers({ children }: { children: ReactNode }) {
       })
   );
 
-  const [isClient, setIsClient] = useState(false);
-  useEffect(() => setIsClient(true), []);
+  const clerkKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  const clerkEnabled = Boolean(clerkKey);
 
-  if (!isClient) {
-    return <>{children}</>;
+  if (process.env.NODE_ENV === 'development' && !clerkEnabled) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[Providers] NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is not set — rendering without auth.'
+    );
   }
 
   return (
-    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY!}>
-      <QueryClientProvider client={queryClient}>
-        {children}
-      </QueryClientProvider>
-    </ClerkProvider>
+    <QueryClientProvider client={queryClient}>
+      {clerkEnabled ? (
+        <ClerkProvider publishableKey={clerkKey}>
+          <ClerkTokenBridge>{children}</ClerkTokenBridge>
+        </ClerkProvider>
+      ) : (
+        children
+      )}
+    </QueryClientProvider>
   );
 }

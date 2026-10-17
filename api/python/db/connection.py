@@ -1,22 +1,35 @@
-import asyncpg
+import logging
 from contextlib import asynccontextmanager
+
+import asyncpg
+
 from config import get_settings
+
+log = logging.getLogger("dri.db")
 
 _pool: asyncpg.Pool | None = None
 
 
 async def init_db() -> None:
+    """Create the connection pool. Degrades gracefully when no DB is configured."""
     global _pool
     settings = get_settings()
-    _pool = await asyncpg.create_pool(
-        settings.DATABASE_URL,
-        min_size=2,
-        max_size=10,
-        command_timeout=60,
-    )
-    # Test connection
-    async with _pool.acquire() as conn:
-        await conn.execute("SELECT 1")
+    if not settings.DATABASE_URL:
+        log.warning("DATABASE_URL not set — running without persistence (stateless mode)")
+        _pool = None
+        return
+    try:
+        _pool = await asyncpg.create_pool(
+            settings.DATABASE_URL,
+            min_size=1,
+            max_size=10,
+            command_timeout=60,
+        )
+        async with _pool.acquire() as conn:
+            await conn.execute("SELECT 1")
+    except Exception as e:  # pragma: no cover - environment dependent
+        log.warning("Database unavailable (%s) — running without persistence", e)
+        _pool = None
 
 
 async def close_db() -> None:
@@ -24,6 +37,10 @@ async def close_db() -> None:
     if _pool:
         await _pool.close()
         _pool = None
+
+
+def is_db_ready() -> bool:
+    return _pool is not None
 
 
 def get_pool() -> asyncpg.Pool:

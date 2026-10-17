@@ -19,7 +19,8 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@shared-types/*": ["../packages/shared-types/src/*"]
+      "@dri/shared-types": ["../packages/shared-types/src/index.ts"],
+      "@dri/shared-types/*": ["../packages/shared-types/src/*"]
     },
     "baseUrl": "."
   },

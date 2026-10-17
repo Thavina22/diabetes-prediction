@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Stethoscope, Shield, Smartphone, Brain, Download, Users } from 'lucide-react';
 
+const API_DOCS = `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'}/docs`;
+
 const features = [
   {
     icon: Stethoscope,
@@ -57,16 +59,16 @@ export default function HomePage() {
             with machine learning. Built for patients, clinicians, and developers.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/sign-up">
+            <Link href="/screening">
               <Button size="lg" className="w-full sm:w-auto px-8 py-3 text-lg">
                 Start Free Screening
               </Button>
             </Link>
-            <Link href="/api-docs">
+            <a href={API_DOCS} target="_blank" rel="noreferrer">
               <Button size="lg" variant="outline" className="w-full sm:w-auto px-8 py-3 text-lg">
                 View API Docs
               </Button>
-            </Link>
+            </a>
           </div>
           <p className="mt-6 text-sm text-muted-foreground">
             Not a medical diagnosis. Always confirm with a clinician.
@@ -113,7 +115,7 @@ export default function HomePage() {
             Takes 2 minutes. No account required for basic screening.
             Create an account to save history and sync devices.
           </p>
-          <Link href="/sign-up">
+          <Link href="/screening">
             <Button size="lg" variant="secondary" className="w-full sm:w-auto px-8 py-3 text-lg">
               Start Screening Now
             </Button>
@@ -130,7 +132,7 @@ export default function HomePage() {
               GitHub
             </a>{' '}
             ·{' '}
-            <a href="/api-docs" className="underline hover:text-foreground">
+            <a href={API_DOCS} className="underline hover:text-foreground" target="_blank" rel="noreferrer">
               API Docs
             </a>{' '}
             ·{' '}

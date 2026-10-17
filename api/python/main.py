@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from config import get_settings
-from routes import screening, health_score, ml_inference, pdf_export, history, devices, third_party
+from routes import screening, health_score, ml_inference, pdf_export, history, devices, third_party, webhooks, cron
 from db.connection import init_db, close_db
 
 
@@ -46,6 +46,8 @@ def create_app() -> FastAPI:
     app.include_router(history.router, prefix="/api/v1", tags=["history"])
     app.include_router(devices.router, prefix="/api/v1", tags=["devices"])
     app.include_router(third_party.router, prefix="/api/v1", tags=["third-party"])
+    app.include_router(webhooks.router, prefix="/api/v1", tags=["webhooks"])
+    app.include_router(cron.router, prefix="/api/v1", tags=["cron"])
 
     # Health check
     @app.get("/health")

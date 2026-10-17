@@ -16,6 +16,19 @@ export const metadata: Metadata = {
     description: 'Clinical diabetes screening with AI-powered risk assessment',
     type: 'website',
   },
+  manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/favicon.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180' }],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'DRI',
+  },
 };
 
 export const viewport: Viewport = {

@@ -4,6 +4,9 @@ const withPWA = require('next-pwa')({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
+  fallbacks: {
+    document: '/offline',
+  },
   runtimeCaching: [
     {
       urlPattern: /^https:\/\/api\./,
@@ -33,7 +36,7 @@ const withPWA = require('next-pwa')({
 
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@shared-types'],
+  transpilePackages: ['@dri/shared-types'],
   experimental: {
     serverActions: {
       bodySizeLimit: '2mb',

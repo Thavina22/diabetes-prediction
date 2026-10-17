@@ -1,5 +1,5 @@
 {
-  "name": "@shared-types",
+  "name": "@dri/shared-types",
   "version": "2.0.0",
   "private": true,
   "main": "./src/index.ts",

@@ -1,14 +1,15 @@
 from datetime import datetime
+from uuid import UUID, uuid4
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from uuid import UUID
 
 from models.screening import (
-    ScreeningInput, ScreeningResult, ScreeningCreateResponse,
+    ScreeningInput, ScreeningResult,
     MLResult, FollowupSchedule, EmergencyFlag,
 )
 from services import clinical_rules as cr
-from services.ml_model import predict_risk
-from db.connection import get_connection, get_transaction
+from services.ml_model import predict_risk_with_shap
+from db.connection import get_connection, get_transaction, is_db_ready
 from db.repositories.users import ensure_user, set_rls_user
 from auth.clerk import get_current_user_id
 
@@ -18,7 +19,7 @@ router = APIRouter()
 def _build_result(input_data: ScreeningInput, user_id: str) -> ScreeningResult:
     """Run all engines and assemble a ScreeningResult."""
     screening = cr.run_clinical_screening(input_data)
-    ml = predict_risk(input_data)
+    ml = predict_risk_with_shap(input_data)
 
     glucose_rules = screening["glucose_rules"]
     bp_rule = screening["bp_rule"]
@@ -44,7 +45,7 @@ def _build_result(input_data: ScreeningInput, user_id: str) -> ScreeningResult:
     emergency_flags = cr.emergency_protocols(glucose_rules, bp_rule)
 
     return ScreeningResult(
-        id=UUID(int=0),
+        id=uuid4(),
         user_id=user_id,
         created_at=datetime.utcnow(),
         input=input_data,
@@ -60,39 +61,39 @@ def _build_result(input_data: ScreeningInput, user_id: str) -> ScreeningResult:
     )
 
 
-@router.post("/screening", response_model=ScreeningCreateResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/screening", response_model=ScreeningResult, status_code=status.HTTP_201_CREATED)
 async def create_screening(
     input_data: ScreeningInput,
     user_id: str = Depends(get_current_user_id),
 ):
-    """Run full clinical screening and store the result."""
+    """Run full clinical screening and store the result.
+
+    When a database is configured the result is persisted; otherwise the
+    computed result is returned statelessly (development mode).
+    """
     try:
         result = _build_result(input_data, user_id)
 
-        async with get_transaction() as conn:
-            internal_id = await ensure_user(conn, user_id)
-            await set_rls_user(conn, internal_id)
-            row = await conn.fetchrow(
-                """
-                INSERT INTO screenings (user_id, input_json, result_json, health_score, risk_category)
-                VALUES ($1, $2, $3, $4, $5)
-                RETURNING id, created_at
-                """,
-                internal_id,
-                input_data.model_dump_json(),
-                result.model_dump_json(),
-                result.health_score,
-                result.risk_category,
-            )
-            result.id = row["id"]
-            result.created_at = row["created_at"]
+        if is_db_ready():
+            async with get_transaction() as conn:
+                internal_id = await ensure_user(conn, user_id)
+                await set_rls_user(conn, internal_id)
+                row = await conn.fetchrow(
+                    """
+                    INSERT INTO screenings (user_id, input_json, result_json, health_score, risk_category)
+                    VALUES ($1, $2, $3, $4, $5)
+                    RETURNING id, created_at
+                    """,
+                    internal_id,
+                    input_data.model_dump_json(),
+                    result.model_dump_json(),
+                    result.health_score,
+                    result.risk_category,
+                )
+                result.id = row["id"]
+                result.created_at = row["created_at"]
 
-        return ScreeningCreateResponse(
-            id=result.id,
-            health_score=result.health_score,
-            risk_category=result.risk_category,
-            message="Screening completed successfully",
-        )
+        return result
     except HTTPException:
         raise
     except Exception as e:
@@ -105,6 +106,8 @@ async def get_screening(
     user_id: str = Depends(get_current_user_id),
 ):
     """Get a specific screening result."""
+    if not is_db_ready():
+        raise HTTPException(status_code=503, detail="Persistence not configured")
     async with get_connection() as conn:
         internal_id = await ensure_user(conn, user_id)
         row = await conn.fetchrow(

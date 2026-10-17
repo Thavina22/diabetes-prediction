@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "cd app && npm run build",
+  "installCommand": "cd app && npm install",
+  "outputDirectory": "app/.next",
+  "crons": [
+    {
+      "path": "/api/python/cron/sync-devices",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}
