@@ -1,8 +1,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Separator } from '@/components/ui/Separator';
+import { ApiKeysClient } from '@/components/settings/ApiKeysClient';
+import { FeatureFlagsPanel } from '@/components/settings/FeatureFlagsPanel';
 
-export const metadata = { title: 'Settings · Diabetes Risk Intelligence' };
+export const metadata = { title: 'Settings — Diabetes Risk Intelligence' };
 
 export default function SettingsPage() {
   return (
@@ -31,15 +33,8 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">API keys</CardTitle>
-          <CardDescription>Programmatic access for third-party integrations.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button variant="outline" size="sm" disabled>Manage keys (Phase 4)</Button>
-        </CardContent>
-      </Card>
+      <ApiKeysClient />
+      <FeatureFlagsPanel />
     </div>
   );
 }

@@ -6,6 +6,9 @@ import type {
   MLResult,
   DeviceConnection,
   DeviceConnectionCreate,
+  FeatureFlagResponse,
+  ApiKey,
+  ApiKeyCreateResponse,
 } from '@/lib/types';
 
 export const API_BASE_URL =
@@ -132,6 +135,34 @@ export async function syncDevice(
 
 export function exportUrl(id: string, format: 'pdf' | 'fhir' | 'cda') {
   return `${API_BASE_URL}/api/v1/history/${id}/export?format=${format}`;
+}
+
+export async function getFeatureFlags(): Promise<FeatureFlagResponse> {
+  const res = await api.get<FeatureFlagResponse>('/api/v1/features');
+  return res.data;
+}
+
+export async function listApiKeys(token: string | null): Promise<ApiKey[]> {
+  const res = await api.get<ApiKey[]>('/api/v1/third-party/api-keys', {
+    headers: await authHeaders(token),
+  });
+  return res.data;
+}
+
+export async function createApiKey(
+  body: { name: string; scopes: string[]; rate_limit_rpm: number },
+  token: string | null
+): Promise<ApiKeyCreateResponse> {
+  const res = await api.post<ApiKeyCreateResponse>('/api/v1/third-party/api-keys', body, {
+    headers: await authHeaders(token),
+  });
+  return res.data;
+}
+
+export async function revokeApiKey(id: string, token: string | null): Promise<void> {
+  await api.delete(`/api/v1/third-party/api-keys/${id}`, {
+    headers: await authHeaders(token),
+  });
 }
 
 export async function downloadExport(

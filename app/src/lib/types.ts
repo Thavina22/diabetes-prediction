@@ -42,3 +42,29 @@ export interface DeviceConnectionCreate {
   refresh_token_encrypted?: string | null;
   token_expires_at?: string | null;
 }
+
+export interface FeatureFlag {
+  key: string;
+  description: string;
+  enabled: boolean;
+  rollout_percentage: number;
+}
+
+export interface FeatureFlagResponse {
+  flags: FeatureFlag[];
+}
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  key_prefix: string;
+  scopes: string[];
+  rate_limit_rpm: number;
+  last_used_at?: string | null;
+  expires_at?: string | null;
+  created_at: string;
+}
+
+export interface ApiKeyCreateResponse extends ApiKey {
+  key: string;
+}

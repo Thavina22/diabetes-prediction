@@ -6,6 +6,7 @@ HL7 CDA R2 document for interoperability with EHR systems.
 
 from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 from xml.sax.saxutils import escape
 
 FHIR_LOINC = {
@@ -43,32 +44,46 @@ def _observation(code: str, value: float, unit: str, effective: str, user_id: st
     }
 
 
-def generate_fhir_bundle(result: dict, user_id: str) -> dict:
-    """Build a FHIR R4 collection Bundle from a screening result dict."""
-    now = datetime.now(timezone.utc).isoformat()
-    inp = result.get("input", {})
-    entries = []
+def _bmi(inp: dict) -> float | None:
+    height = inp.get("height_cm")
+    weight = inp.get("weight_kg")
+    if height and weight:
+        return round(weight / ((height / 100.0) ** 2), 1)
+    return None
 
-    field_map = {
-        "glucose": ("glucose", "mg/dL"),
-        "hba1c": ("hba1c", "%"),
-        "systolic_bp": ("systolic", "mmHg"),
-        "diastolic_bp": ("diastolic", "mmHg"),
-        "bmi": ("bmi", "kg/m2"),
-        "hdl": ("hdl", "mg/dL"),
-        "triglycerides": ("triglycerides", "mg/dL"),
-    }
-    for field, (code, unit) in field_map.items():
-        value = inp.get(field)
-        if value is not None:
-            entries.append({
-                "fullUrl": f"urn:uuid:{code}-{user_id}",
-                "resource": _observation(code, value, unit, now, user_id),
-            })
+
+def generate_fhir_bundle(result: dict, user_id: str) -> dict:
+    """Build a FHIR R4 collection Bundle from a screening result dict.
+
+    Maps the ScreeningInput schema (glucose_mg_dl, sbp, dbp, height_cm,
+    weight_kg, hdl_mg_dl, triglycerides_mg_dl) onto LOINC-coded Observations.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    inp = result.get("input", {}) or {}
+    screening_id = str(result.get("id", "screening"))
+    entries: list[dict] = []
+
+    def add(code: str, value: Any, unit: str) -> None:
+        if value is None:
+            return
+        entries.append({
+            "fullUrl": f"urn:uuid:{uuid4()}",
+            "resource": _observation(code, float(value), unit, now, user_id),
+        })
+
+    if inp.get("glucose_type") == "hba1c":
+        add("hba1c", inp.get("glucose_mg_dl"), "%")
+    else:
+        add("glucose", inp.get("glucose_mg_dl"), "mg/dL")
+    add("systolic", inp.get("sbp"), "mmHg")
+    add("diastolic", inp.get("dbp"), "mmHg")
+    add("bmi", _bmi(inp), "kg/m2")
+    add("hdl", inp.get("hdl_mg_dl"), "mg/dL")
+    add("triglycerides", inp.get("triglycerides_mg_dl"), "mg/dL")
 
     return {
         "resourceType": "Bundle",
-        "id": str(result.get("id", "screening")),
+        "id": screening_id.replace(".", "-"),
         "type": "collection",
         "timestamp": now,
         "entry": entries,

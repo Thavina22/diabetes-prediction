@@ -56,6 +56,22 @@ async def user_transaction(clerk_id: str):
         yield conn, internal_id
 
 
+@asynccontextmanager
+async def rls_connection(internal_id: str):
+    """Read-only connection scoped to an already-resolved internal user id."""
+    async with get_connection() as conn:
+        await set_rls_user(conn, internal_id)
+        yield conn
+
+
+@asynccontextmanager
+async def rls_transaction(internal_id: str):
+    """Transaction scoped to an already-resolved internal user id."""
+    async with get_transaction() as conn:
+        await set_rls_user(conn, internal_id)
+        yield conn
+
+
 async def sync_user_from_clerk(
     clerk_id: str,
     email: str | None = None,

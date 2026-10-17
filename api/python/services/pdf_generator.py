@@ -21,6 +21,15 @@ def _score_label(score: int) -> str:
     return "High concern"
 
 
+def _as_dict(rule):
+    """Normalise a ClinicalRule (Pydantic) or plain dict to a dict."""
+    if rule is None:
+        return None
+    if hasattr(rule, "model_dump"):
+        return rule.model_dump()
+    return dict(rule)
+
+
 def generate_clinical_pdf(result) -> bytes:
     """Render a one-page clinical screening PDF for a ScreeningResult."""
     buf = io.BytesIO()
@@ -28,10 +37,10 @@ def generate_clinical_pdf(result) -> bytes:
     w, h = A4
 
     input_data = result.input
-    glucose_rules = result.glucose_rules
-    bp_rule = result.bp_rule
-    bmi_rule = result.bmi_rule
-    lipid_rules = result.lipid_rules
+    glucose_rules = [_as_dict(r) for r in result.glucose_rules]
+    bp_rule = _as_dict(result.bp_rule)
+    bmi_rule = _as_dict(result.bmi_rule)
+    lipid_rules = [_as_dict(r) for r in result.lipid_rules]
     ml = result.ml_result
     health_score = result.health_score
 
