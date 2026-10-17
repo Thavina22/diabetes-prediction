@@ -3,7 +3,7 @@
 > **Live (new):** [diabetes-prediction.vercel.app](https://diabetes-prediction.vercel.app)
 > **Live (legacy v1):** [diabetes-prediction-v0.streamlit.app](https://diabetes-prediction-v0.streamlit.app)
 
-A diabetes risk screening platform that combines clinical rules (ADA 2026, AHA-ACC 2025) with a machine learning model (PIMA Gradient Boosting classifier, with a Random Forest + XGBoost ensemble on the roadmap) to help people understand their health measurements. Built as a **Next.js + FastAPI monorepo** and deployed on **Vercel**.
+A diabetes risk screening platform that combines clinical rules (ADA 2026, AHA-ACC 2025) with a machine learning model (a **calibrated soft-voting ensemble** — Logistic Regression, SVM, Random Forest, Gradient Boosting and XGBoost over the PIMA dataset) to help people understand their health measurements. Built as a **Next.js + FastAPI monorepo** and deployed on **Vercel**. Hospital and lab systems can pull results through **FHIR R4 / CDA** exports and a **scoped third-party API**.
 
 > ⚠️ **Screening and education only — not a medical diagnosis.** Always confirm results with a clinician.
 
@@ -18,7 +18,7 @@ A diabetes risk screening platform that combines clinical rules (ADA 2026, AHA-A
 │   ┌──────────────────────┐        ┌──────────────────────┐      │
 │   │  Next.js 14 (App)    │  HTTPS │  FastAPI (Python)    │      │
 │   │  React 18 + Tailwind │◄──────►│  Serverless Functions│      │
-│   │  shadcn/ui, PWA      │        │  /api/python/*       │      │
+│   │  shadcn/ui, PWA      │        │  /api/v1/*           │      │
 │   └──────────┬───────────┘        └──────────┬───────────┘      │
 │              │                               │                  │
 │              │ Clerk (auth)                  │ asyncpg          │
@@ -117,10 +117,12 @@ diabetes-prediction/
 │       ├── models/               # Pydantic v2 models
 │       ├── services/
 │       │   ├── clinical_rules.py # Clinical engine (pure Python)
-│       │   ├── ml_model.py       # Gradient Boosting + SHAP
+│       │   ├── ml_model.py       # Ensemble + calibration + SHAP
 │       │   ├── pdf_generator.py  # reportlab
 │       │   ├── device_sync.py    # HealthKit/Fit/CGM
-│       │   ├── risk_engine.py    # Ensemble + uncertainty
+│       │   ├── screening_engine.py # Result assembler (build_result)
+│       │   ├── feature_flags.py  # Flags + percentage rollout
+│       │   ├── rate_limit.py     # Upstash / in-memory limiter
 │       │   └── fhir_export.py    # FHIR R4 / CDA
 │       ├── db/
 │       │   ├── connection.py     # asyncpg pool
@@ -161,19 +163,22 @@ Every verdict comes from a single, transparent, offline rules layer (`api/python
 
 ## ML Model Accuracy
 
-> **Deployed model:** the shipped artifact (`data/processed/best_model.joblib`) is a
-> **Gradient Boosting classifier** trained on the PIMA Indians Diabetes Database
-> (768 records, 8 features). It outputs a supplementary risk score only — the
-> clinical rules engine remains the source of truth. A field was also found to be
-> mislabeled historically as "Random Forest"; this table is the model-comparison
-> experiment log, not the deployed artifact.
+> **Deployed model:** a **soft-voting ensemble** (Logistic Regression, SVM, Random
+> Forest, Gradient Boosting, XGBoost) trained on the PIMA Indians Diabetes
+> Database (768 records, 8 features) and shipped as
+> `data/processed/ensemble_model.joblib`. Raw scores are **Platt-calibrated**
+> (`calibrator.joblib`) and paired with **split-conformal 90% intervals**
+> (`conformal_q ≈ 0.70`). SHAP explanations come from the Gradient Boosting
+> member (`best_model.joblib`). All artifacts are produced by
+> `scripts/train_ensemble.py`. It outputs a supplementary risk score only — the
+> clinical rules engine remains the source of truth.
 
-| Model | Accuracy | Precision | Recall | F1 |
-|-------|----------|-----------|--------|-----|
-| Logistic Regression | 70.8% | 60.0% | 50.0% | 0.55 |
-| SVM (tuned) | 74.0% | 65.2% | 55.6% | 0.60 |
-| **Gradient Boosting (deployed)** | **77.9%** | **71.7%** | **61.1%** | **0.66** |
-| Ensemble (GB + XGB + LR) | *roadmap* | *roadmap* | *roadmap* | *roadmap* |
+| Model | F1 | AUC | Notes |
+|-------|----|-----|-------|
+| Gradient Boosting (baseline) | 0.592 | 0.823 | SHAP explainer member |
+| **Soft-voting ensemble** | **0.681** | **0.825** | decision threshold 0.26 |
+| **+ Platt calibration (deployed)** | **0.727** | **0.825** | calibrated probability |
+| Conformal interval (90%) | — | — | `q = 0.696`, test coverage 0.883 |
 
 ---
 
@@ -201,21 +206,31 @@ cp .env.example .env
 Required variables:
 
 ```bash
-# Database (Neon)
+# Database (Neon) — leave blank to run in stateless mode
 DATABASE_URL=postgresql://user:pass@host/db
 
-# Clerk auth
-CLERK_PUBLISHABLE_KEY=pk_test_...
+# Clerk auth — leave blank locally to run without auth
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=sk_test_...
 CLERK_ISSUER=https://your-app.clerk.accounts.dev
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_WEBHOOK_SECRET=whsec_...        # POST /api/v1/webhooks/clerk (Svix)
 
-# Upstash Redis (rate limiting)
+# Upstash Redis (rate limiting) — optional, falls back to in-memory
 UPSTASH_REDIS_REST_URL=https://...
 UPSTASH_REDIS_REST_TOKEN=...
 
-# ML model
-MODEL_PATH=models/diabetes_rf.joblib
+# Cron protection — Vercel sends `Authorization: Bearer <CRON_SECRET>`
+CRON_SECRET=
+
+# Local-only auth bypass (never enable in production)
+DEV_AUTH_BYPASS=false
+DEV_USER_ID=dev-user
+
+# Frontend -> API base URL (local dev only; production uses same-origin)
+NEXT_PUBLIC_API_URL=http://localhost:8000
+
+# ML model directory
+MODEL_PATH=data/processed/best_model.joblib
 ```
 
 ### 3. Start local services
@@ -247,6 +262,10 @@ Open [http://localhost:3000](http://localhost:3000) (frontend) or [http://localh
 
 ## Deployment (Vercel)
 
+The project deploys as **one Vercel project using [Services](https://vercel.com/docs/services)**: a `web` service (Next.js, `app/`) and an `api` service (FastAPI, `api/python/`). Repo-root `vercel.json` declares both services and the rewrites that publish them — `/api/v1/*` → `api`, everything else → `web`. Rewrites preserve the path, so FastAPI sees its own `/api/v1/...` routes.
+
+> **Note:** Without this config, Vercel would serve the Python entrypoint at its *file path* (`/api/python/main`) and never forward `/api/v1/*`, so the frontend would get 404s. Services (beta) is the documented way to run a Next.js frontend and a Python backend in one repo.
+
 ### One-time setup
 
 ```bash
@@ -256,15 +275,28 @@ vercel link                    # link to your Vercel project
 
 ### Environment variables
 
-Set in Vercel dashboard or via CLI:
+Set in the Vercel dashboard (or via `vercel env add`):
 
 ```bash
 vercel env add DATABASE_URL
 vercel env add CLERK_SECRET_KEY
 vercel env add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+vercel env add CLERK_WEBHOOK_SECRET
+vercel env add CRON_SECRET
 vercel env add UPSTASH_REDIS_REST_URL
 vercel env add UPSTASH_REDIS_REST_TOKEN
+vercel env add CORS_ORIGINS            # e.g. ["https://<your-domain>"]
+vercel env add ENVIRONMENT             # production
+vercel env add PYTHON_VERSION          # 3.11 (matches the ML artifacts)
 ```
+
+- **`ENVIRONMENT`** must not be `development`, so `DEV_AUTH_BYPASS` is ignored.
+- **`PYTHON_VERSION=3.11`** matches the interpreter the model artifacts were pickled with. If you bump the runtime, re-run `scripts/train_ensemble.py` there.
+- **`NEXT_PUBLIC_API_URL`** can be left unset in production — the client falls back to same-origin and calls `/api/v1/*`.
+
+### Cron
+
+`vercel.json` schedules `GET /api/v1/cron/sync-devices` daily (`0 6 * * *`). Set `CRON_SECRET` and Vercel sends it automatically as `Authorization: Bearer <secret>`; the route returns 401 without it when the secret is configured.
 
 ### Deploy
 
@@ -292,11 +324,19 @@ Auto-generated OpenAPI docs:
 | `GET` | `/api/v1/screening/{id}` | Get screening result |
 | `POST` | `/api/v1/health-score` | Calculate 0-100 score |
 | `POST` | `/api/v1/ml/predict` | ML inference + SHAP |
-| `POST` | `/api/v1/export/pdf` | Generate clinical PDF |
+| `POST` | `/api/v1/ml/predict-simple` | ML inference without SHAP |
+| `POST` | `/api/v1/export/pdf` | Generate a clinical PDF (stateless) |
+| `POST` | `/api/v1/export/fhir` | FHIR R4 Bundle (stateless) |
+| `POST` | `/api/v1/export/cda` | HL7 CDA R2 document (stateless) |
 | `GET` | `/api/v1/history` | List user screenings |
-| `GET` | `/api/v1/history/{id}/export?format=fhir` | FHIR R4 export |
+| `GET` | `/api/v1/history/{id}/export?format=pdf\|fhir\|cda` | Export a stored screening |
 | `GET` | `/api/v1/devices` | List connected devices |
+| `GET` | `/api/v1/features` | Effective feature flags |
 | `POST` | `/api/v1/third-party/api-keys` | Create API key |
+| `POST` | `/api/v1/third-party/screening` | Screening via API key (scope `screening:write`) |
+| `GET` | `/api/v1/third-party/history` | History via API key (scope `history:read`) |
+| `GET/POST` | `/api/v1/cron/sync-devices` | Background device sync (cron) |
+| `POST` | `/api/v1/webhooks/clerk` | Clerk user sync (Svix-verified) |
 
 ### Third-party authentication
 
