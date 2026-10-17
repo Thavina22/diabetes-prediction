@@ -52,7 +52,7 @@ A diabetes risk screening platform that combines clinical rules (ADA 2026, AHA-A
 - **Advanced risk modeling** — SHAP explanations, RF+XGBoost ensemble, uncertainty bands
 - **Third-party API** — scoped API keys, rate limiting, webhooks
 - **FHIR/CDA export** — standards-compliant EHR integration
-- **Automated retraining** — weekly GitHub Action pipeline
+- **Model retraining** — `scripts/train_ensemble.py` reproduces all artifacts
 - **Feature flags** — gradual rollout control
 
 ### v2.0 — Advanced Medical Features
@@ -95,7 +95,7 @@ diabetes-prediction/
 │   │   │   ├── screening/        # Screening components
 │   │   │   ├── charts/           # Recharts wrappers
 │   │   │   └── pdf/              # @react-pdf/renderer
-│   │   ├── lib/                  # api.ts, auth.ts, validation/
+│   │   ├── lib/                  # api client, auth token, validation/
 │   │   ├── hooks/                # Custom React hooks
 │   │   ├── store/                # Zustand (offline, UI)
 │   │   └── types/                # OpenAPI-generated types
@@ -135,17 +135,20 @@ diabetes-prediction/
 │   └── shared-types/             # OpenAPI → TypeScript
 │
 ├── .github/workflows/
-│   ├── ci.yml                    # lint, typecheck, test, build
-│   ├── deploy-preview.yml        # Vercel preview on PR
-│   └── deploy-prod.yml           # Vercel prod on merge
+│   ├── ci.yml                    # v3 monorepo: frontend + backend pytest
+│   └── test.yml                  # legacy v1 pipeline (preprocessing → training)
 │
 ├── docs/superpowers/specs/       # Design specs
 ├── .Codex/plans/                 # Implementation plans
 ├── docker-compose.yml            # Local Postgres + Redis
-├── turbo.json                    # Turborepo pipeline
-├── vercel.json                   # Vercel config
+├── turbo.json                    # Turborepo task pipeline
+├── vercel.json                   # Vercel Services + cron config
 └── package.json                  # Root workspace
 ```
+
+> The repository root also still hosts the **legacy v1 Streamlit app** (`app.py`,
+> `src/`, `tests/`, root `requirements.txt`), deployed separately. The v3
+> architecture above lives in `app/` and `api/`.
 
 ---
 
@@ -305,7 +308,7 @@ vercel                         # preview deploy
 vercel --prod                  # production deploy
 ```
 
-CI/CD is automated: PRs get preview deploys, merges to `main` deploy to production.
+Deployment is handled by **Vercel's Git integration** (connect the repo in the Vercel dashboard): pushes to `main` deploy to production and pull requests get preview deployments. Quality gates run separately in GitHub Actions (`.github/workflows/ci.yml`).
 
 ---
 
@@ -350,17 +353,20 @@ curl -H "Authorization: Bearer drk_live_..." \
 ## Testing
 
 ```bash
-# Backend
+# Backend — pytest + coverage (49 tests)
 cd api/python
-pytest tests/ -v --cov=services
+pip install -r requirements-dev.txt
+pytest --cov=services --cov=routes
 
-# Frontend
+# Frontend — quality gates
 cd app
 npm run lint
 npm run typecheck
-npm run test
-npm run test:e2e
 ```
+
+CI (`.github/workflows/ci.yml`) runs both on every push and PR to `main`.
+Frontend unit (`vitest`) and E2E (`playwright`) suites are wired in
+`app/package.json` but do not yet have test files, so they are not in CI.
 
 ---
 
