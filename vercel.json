@@ -1,11 +1,22 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd app && npm run build",
-  "installCommand": "cd app && npm install",
-  "outputDirectory": "app/.next",
+  "services": {
+    "web": {
+      "root": "app/",
+      "framework": "nextjs"
+    },
+    "api": {
+      "root": "api/python/",
+      "entrypoint": "main:app"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/v1/(.*)", "destination": { "service": "api" } },
+    { "source": "/(.*)", "destination": { "service": "web" } }
+  ],
   "crons": [
     {
-      "path": "/api/python/cron/sync-devices",
+      "path": "/api/v1/cron/sync-devices",
       "schedule": "0 6 * * *"
     }
   ]

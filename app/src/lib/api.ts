@@ -11,8 +11,14 @@ import type {
   ApiKeyCreateResponse,
 } from '@/lib/types';
 
+const explicitApiUrl = process.env.NEXT_PUBLIC_API_URL;
+
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+  explicitApiUrl !== undefined && explicitApiUrl !== ''
+    ? explicitApiUrl
+    : process.env.NODE_ENV === 'production'
+      ? '' // same origin — the FastAPI service is published under /api/v1 (Vercel Services)
+      : 'http://localhost:8000';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
