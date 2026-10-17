@@ -1,0 +1,49 @@
+# Render blueprint — single container running the Next.js frontend and the
+# FastAPI backend (see Dockerfile). Render sets $PORT; the entrypoint starts
+# FastAPI internally and Next.js as the public server.
+#
+# Required memory: 2 GB. The Python stack (scikit-learn + xgboost + shap +
+# pandas) plus the Next.js server does not fit in Render's 512 MB tiers.
+services:
+  - type: web
+    name: diabetes-prediction
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: standard
+    region: oregon
+    healthCheckPath: /api/v1/features
+    autoDeploy: true
+    envVars:
+      # Same-origin: the browser calls /api/v1/* and Next proxies to FastAPI.
+      - key: NEXT_PUBLIC_API_URL
+        value: ""
+      # Clerk's publishable key is inlined at build time.
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+      # Set to "production" once Clerk + Neon are configured.
+      - key: ENVIRONMENT
+        value: development
+      # Only honoured when ENVIRONMENT != production. Lets the app run with no
+      # database or auth provider. Remove both once Clerk + Neon are wired up.
+      - key: DEV_AUTH_BYPASS
+        value: "true"
+      - key: DEV_USER_ID
+        value: demo-user
+      - key: DATABASE_URL
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_ISSUER
+        sync: false
+      - key: CLERK_WEBHOOK_SECRET
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false

@@ -65,6 +65,7 @@ def _artifact_dir() -> Optional[Path]:
     settings = get_settings()
     candidates = [
         Path(settings.MODEL_PATH),
+        Path(__file__).resolve().parents[1] / "artifacts" / "best_model.joblib",
         Path(__file__).resolve().parents[3] / "data" / "processed" / "best_model.joblib",
         Path("data/processed/best_model.joblib"),
         Path("../data/processed/best_model.joblib"),

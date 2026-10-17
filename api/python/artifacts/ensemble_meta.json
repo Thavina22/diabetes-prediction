@@ -1,0 +1,45 @@
+{
+  "version": "4.0",
+  "features": [
+    "Pregnancies",
+    "Glucose",
+    "BloodPressure",
+    "SkinThickness",
+    "Insulin",
+    "BMI",
+    "DiabetesPedigreeFunction",
+    "Age"
+  ],
+  "calibration": "platt_logistic",
+  "threshold": 0.26000000000000006,
+  "conformal_q": 0.696354204910035,
+  "conformal_alpha": 0.1,
+  "conformal_coverage_test": 0.8831168831168831,
+  "metrics": {
+    "gradient_boosting": {
+      "accuracy": 0.7402597402597403,
+      "precision": 0.6590909090909091,
+      "recall": 0.5370370370370371,
+      "f1": 0.5918367346938775,
+      "auc": 0.8227777777777777,
+      "threshold": 0.5
+    },
+    "ensemble": {
+      "accuracy": 0.7077922077922078,
+      "precision": 0.5517241379310345,
+      "recall": 0.8888888888888888,
+      "f1": 0.6808510638297872,
+      "auc": 0.8253703703703704,
+      "threshold": 0.26000000000000006
+    },
+    "calibrated": {
+      "accuracy": 0.7662337662337663,
+      "precision": 0.6153846153846154,
+      "recall": 0.8888888888888888,
+      "f1": 0.7272727272727273,
+      "auc": 0.8253703703703704,
+      "threshold": 0.26000000000000006
+    }
+  },
+  "trained_at": "2026-10-17T11:35:00"
+}

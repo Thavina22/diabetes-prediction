@@ -38,3 +38,6 @@ openapi.json
 # Python venvs
 .venv/
 venv/
+
+.vercel
+.env*

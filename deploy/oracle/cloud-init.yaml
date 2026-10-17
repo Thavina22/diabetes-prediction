@@ -1,0 +1,17 @@
+#cloud-config
+# Paste this into the Oracle Cloud "Create instance" form:
+#   Advanced options -> Management -> Cloud-init script
+# It installs Docker, clones the repo and builds + starts the container.
+#
+# Default user on Oracle Ubuntu images is "ubuntu" (passwordless sudo).
+
+package_update: true
+packages:
+  - git
+  - curl
+
+runcmd:
+  - [ bash, -lc, "sudo -u ubuntu -H git clone --depth 1 https://github.com/sam-black007/diabetes-prediction.git /home/ubuntu/app" ]
+  - [ bash, -lc, "sudo -u ubuntu -H env APP_DIR=/home/ubuntu/app bash /home/ubuntu/app/deploy/oracle/bootstrap.sh" ]
+
+final_message: "Bootstrap finished. The app is building on port 3000 (see /var/log/cloud-init-output.log)."

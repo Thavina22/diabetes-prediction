@@ -1,9 +1,9 @@
 # Diabetes Risk Intelligence
 
-> **Live (new):** [diabetes-prediction.vercel.app](https://diabetes-prediction.vercel.app)
+> **Live (new):** not deployed yet — see [Deployment](#deployment)
 > **Live (legacy v1):** [diabetes-prediction-v0.streamlit.app](https://diabetes-prediction-v0.streamlit.app)
 
-A diabetes risk screening platform that combines clinical rules (ADA 2026, AHA-ACC 2025) with a machine learning model (a **calibrated soft-voting ensemble** — Logistic Regression, SVM, Random Forest, Gradient Boosting and XGBoost over the PIMA dataset) to help people understand their health measurements. Built as a **Next.js + FastAPI monorepo** and deployed on **Vercel**. Hospital and lab systems can pull results through **FHIR R4 / CDA** exports and a **scoped third-party API**.
+A diabetes risk screening platform that combines clinical rules (ADA 2026, AHA-ACC 2025) with a machine learning model (a **calibrated soft-voting ensemble** — Logistic Regression, SVM, Random Forest, Gradient Boosting and XGBoost over the PIMA dataset) to help people understand their health measurements. Built as a **Next.js + FastAPI monorepo** and shipped as a **single Docker container** (one URL, frontend and API together). Hospital and lab systems can pull results through **FHIR R4 / CDA** exports and a **scoped third-party API**.
 
 > ⚠️ **Screening and education only — not a medical diagnosis.** Always confirm results with a clinician.
 
@@ -13,39 +13,44 @@ A diabetes risk screening platform that combines clinical rules (ADA 2026, AHA-A
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                          Vercel (single deploy)                 │
+│                    One Docker container (one URL)               │
 │                                                                 │
-│   ┌──────────────────────┐        ┌──────────────────────┐      │
-│   │  Next.js 14 (App)    │  HTTPS │  FastAPI (Python)    │      │
-│   │  React 18 + Tailwind │◄──────►│  Serverless Functions│      │
-│   │  shadcn/ui, PWA      │        │  /api/v1/*           │      │
-│   └──────────┬───────────┘        └──────────┬───────────┘      │
-│              │                               │                  │
-│              │ Clerk (auth)                  │ asyncpg          │
-│              ▼                               ▼                  │
-│      ┌──────────────┐               ┌──────────────────┐        │
-│      │  Clerk       │               │  Neon Postgres   │        │
-│      │  (10k MAU)   │               │  (0.5 GB free)   │        │
-│      └──────────────┘               └──────────────────┘        │
-│                                              │                  │
-│                                     ┌────────▼────────┐         │
-│                                     │ Upstash Redis   │         │
-│                                     │ (rate limiting) │         │
-│                                     └─────────────────┘         │
+│   ┌─────────────────────────┐    ┌──────────────────────┐       │
+│   │  Next.js 14 standalone  │ /api/v1/*  FastAPI (Python)      │
+│   │  React 18 + Tailwind    │──proxy───►│  uvicorn :8000 │       │
+│   │  shadcn/ui, PWA         │    │  (internal)          │       │
+│   └──────────┬──────────────┘    └──────────┬───────────┘       │
+│              │                              │                   │
+│              │ Clerk (auth)                 │ asyncpg           │
+│              ▼                              ▼                   │
+│      ┌──────────────┐              ┌──────────────────┐         │
+│      │  Clerk       │              │  Neon Postgres   │         │
+│      │  (10k MAU)   │              │  (0.5 GB free)   │         │
+│      └──────────────┘              └──────────────────┘         │
+│                                             │                   │
+│                                    ┌────────▼────────┐          │
+│                                    │ Upstash Redis   │          │
+│                                    │ (rate limiting) │          │
+│                                    └─────────────────┘          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Total cost: $0/month** on free tiers (Vercel Hobby, Neon, Clerk, Upstash).
+The browser only ever talks to the Next.js server. In production `API_BASE_URL` is
+same-origin, and `next.config.js` rewrites `/api/v1/:path*` to the internal
+FastAPI process, so the API is never exposed directly.
+
+**Cost:** Neon, Clerk and Upstash run on free tiers; the container needs **2 GB RAM**
+(the scikit-learn + xgboost + shap stack does not fit smaller instances).
 
 ---
 
 ## Version History
 
-### v3.0 — Vercel Rewrite (current)
-*Next.js + FastAPI monorepo*
+### v3.0 — Next.js + FastAPI Rewrite (current)
+*Single-container monorepo*
 
 - **Next.js 14 frontend** — App Router, React 18, TypeScript strict, Tailwind CSS, shadcn/ui
-- **FastAPI backend** — Python serverless functions on Vercel
+- **FastAPI backend** — Python 3.11 + uvicorn, same origin behind the Next.js server
 - **User accounts & history** — Clerk auth + Neon Postgres persistence
 - **Real-time device sync** — Apple HealthKit, Google Fit, CGM (Dexcom/Libre) webhooks
 - **Offline PWA** — service worker, IndexedDB queue, background sync
@@ -141,8 +146,10 @@ diabetes-prediction/
 ├── docs/superpowers/specs/       # Design specs
 ├── .Codex/plans/                 # Implementation plans
 ├── docker-compose.yml            # Local Postgres + Redis
+├── Dockerfile                    # Single-image build (Next.js + FastAPI)
+├── docker/entrypoint.sh          # Starts uvicorn + Next.js in one container
+├── render.yaml                   # Render blueprint (container host)
 ├── turbo.json                    # Turborepo task pipeline
-├── vercel.json                   # Vercel Services + cron config
 └── package.json                  # Root workspace
 ```
 
@@ -222,7 +229,7 @@ CLERK_WEBHOOK_SECRET=whsec_...        # POST /api/v1/webhooks/clerk (Svix)
 UPSTASH_REDIS_REST_URL=https://...
 UPSTASH_REDIS_REST_TOKEN=...
 
-# Cron protection — Vercel sends `Authorization: Bearer <CRON_SECRET>`
+# Cron protection — your scheduler sends `Authorization: Bearer <CRON_SECRET>`
 CRON_SECRET=
 
 # Local-only auth bypass (never enable in production)
@@ -263,52 +270,73 @@ Open [http://localhost:3000](http://localhost:3000) (frontend) or [http://localh
 
 ---
 
-## Deployment (Vercel)
+## Deployment (Docker container)
 
-The project deploys as **one Vercel project using [Services](https://vercel.com/docs/services)**: a `web` service (Next.js, `app/`) and an `api` service (FastAPI, `api/python/`). Repo-root `vercel.json` declares both services and the rewrites that publish them — `/api/v1/*` → `api`, everything else → `web`. Rewrites preserve the path, so FastAPI sees its own `/api/v1/...` routes.
-
-> **Note:** Without this config, Vercel would serve the Python entrypoint at its *file path* (`/api/python/main`) and never forward `/api/v1/*`, so the frontend would get 404s. Services (beta) is the documented way to run a Next.js frontend and a Python backend in one repo.
-
-### One-time setup
+The project ships as **one container** (see `Dockerfile`): Next.js is built in
+standalone mode, Python 3.11 runs the FastAPI app beside it, and `docker/entrypoint.sh`
+starts both — FastAPI on an internal port, Next.js as the only public server.
+`next.config.js` proxies `/api/v1/:path*` to the internal API, so there is a single
+URL and no CORS or exposed API service.
 
 ```bash
-npm i -g vercel
-vercel link                    # link to your Vercel project
+# Build and run locally (needs Docker)
+docker build -t diabetes-prediction .
+docker run -p 3000:3000 --env ENVIRONMENT=development --env DEV_AUTH_BYPASS=true diabetes-prediction
+# → http://localhost:3000
 ```
+
+### Deploy to Oracle Cloud (always free, 24 GB)
+
+Oracle's Always Free ARM shape (`VM.Standard.A1.Flex`, 4 OCPU / 24 GB) comfortably
+runs the whole stack and is free with no time limit. It is a normal always-on VM —
+your laptop is only used for setup.
+
+1. Create an instance: **Ubuntu 22.04/24.04**, shape **`VM.Standard.A1.Flex`**
+   (4 OCPU, 24 GB), add your SSH key, and paste `deploy/oracle/cloud-init.yaml`
+   into *Advanced options → Management → Cloud-init script*.
+2. In the VCN's **security list**, add an ingress rule: source `0.0.0.0/0`,
+   TCP, destination port **3000**.
+3. Wait for the build (a few minutes), then open `http://<public-ip>:3000`.
+
+To update later, SSH in and re-run the bootstrap (it re-pulls and rebuilds):
+
+```bash
+ssh ubuntu@<public-ip> 'APP_DIR=/home/ubuntu/app bash /home/ubuntu/app/deploy/oracle/bootstrap.sh'
+```
+
+Put real secrets in `/home/ubuntu/app/.env.production` — the bootstrap passes it to
+the container automatically. For HTTPS, put Caddy or nginx in front of port 3000.
+
+> **Why not Vercel?** Vercel's Python functions cap the bundle at 500 MB. The
+> scikit-learn + xgboost + shap stack unpacks to ~1.2 GB, so it cannot be hosted
+> as a serverless function. A container has no such limit.
+
+**Other hosts:** any Docker host works. `render.yaml` is included for a Render
+Blueprint, but it requests a 2 GB instance — Render's 512 MB free tier is too small
+for the ML stack. Railway and Fly.io work the same way (point them at the `Dockerfile`).
 
 ### Environment variables
 
-Set in the Vercel dashboard (or via `vercel env add`):
+Set on the host (all optional for a no-database demo):
 
-```bash
-vercel env add DATABASE_URL
-vercel env add CLERK_SECRET_KEY
-vercel env add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-vercel env add CLERK_WEBHOOK_SECRET
-vercel env add CRON_SECRET
-vercel env add UPSTASH_REDIS_REST_URL
-vercel env add UPSTASH_REDIS_REST_TOKEN
-vercel env add CORS_ORIGINS            # e.g. ["https://<your-domain>"]
-vercel env add ENVIRONMENT             # production
-vercel env add PYTHON_VERSION          # 3.11 (matches the ML artifacts)
-```
+| Variable | Purpose |
+|----------|---------|
+| `ENVIRONMENT` | `production` for real auth; anything else enables the dev bypass below |
+| `DEV_AUTH_BYPASS` | `true` runs without Clerk/DB (demo only; ignored when `ENVIRONMENT=production`) |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key — **inlined at build time**, pass as a Docker build arg |
+| `NEXT_PUBLIC_API_URL` | Leave empty/`""` in the container — the client is same-origin |
+| `DATABASE_URL` | Neon Postgres (enables history, devices, API keys) |
+| `CLERK_SECRET_KEY`, `CLERK_ISSUER` | Clerk JWT verification |
+| `CLERK_WEBHOOK_SECRET` | Svix signature for `POST /api/v1/webhooks/clerk` |
+| `CRON_SECRET` | Protects `GET|POST /api/v1/cron/sync-devices` |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Distributed rate limiting |
+| `CORS_ORIGINS` | JSON array, only needed if the API is called cross-origin |
 
-- **`ENVIRONMENT`** must not be `development`, so `DEV_AUTH_BYPASS` is ignored.
-- **`PYTHON_VERSION=3.11`** matches the interpreter the model artifacts were pickled with. If you bump the runtime, re-run `scripts/train_ensemble.py` there.
-- **`NEXT_PUBLIC_API_URL`** can be left unset in production — the client falls back to same-origin and calls `/api/v1/*`.
-
-### Cron
-
-`vercel.json` schedules `GET /api/v1/cron/sync-devices` daily (`0 6 * * *`). Set `CRON_SECRET` and Vercel sends it automatically as `Authorization: Bearer <secret>`; the route returns 401 without it when the secret is configured.
-
-### Deploy
-
-```bash
-vercel                         # preview deploy
-vercel --prod                  # production deploy
-```
-
-Deployment is handled by **Vercel's Git integration** (connect the repo in the Vercel dashboard): pushes to `main` deploy to production and pull requests get preview deployments. Quality gates run separately in GitHub Actions (`.github/workflows/ci.yml`).
+- **Python 3.11** is pinned in `api/python/.python-version` and the image is built on
+  Debian bookworm (Python 3.11), matching the interpreter the model artifacts were
+  pickled with.
+- Scheduling `sync-devices` is host-specific (e.g. a Render cron job hitting
+  `/api/v1/cron/sync-devices` with the `CRON_SECRET`).
 
 ---
 
@@ -317,7 +345,7 @@ Deployment is handled by **Vercel's Git integration** (connect the repo in the V
 Auto-generated OpenAPI docs:
 
 - **Local:** [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Production:** [https://diabetes-prediction.vercel.app/api-docs](https://diabetes-prediction.vercel.app/api-docs)
+- **Production:** `https://<your-app-domain>/api-docs`
 
 ### Core endpoints
 
@@ -345,7 +373,7 @@ Auto-generated OpenAPI docs:
 
 ```bash
 curl -H "Authorization: Bearer drk_live_..." \
-  https://diabetes-prediction.vercel.app/api/v1/third-party/history
+  https://<your-app-domain>/api/v1/third-party/history
 ```
 
 ---
@@ -384,8 +412,8 @@ Frontend unit (`vitest`) and E2E (`playwright`) suites are wired in
 | ML | scikit-learn, XGBoost, SHAP |
 | PDF | reportlab (server), @react-pdf/renderer (client) |
 | PWA | next-pwa (Workbox), idb |
-| Deploy | Vercel (Hobby) |
-| CI/CD | GitHub Actions |
+| Deploy | Docker (single container; Render blueprint included) |
+| CI/CD | GitHub Actions (`.github/workflows/ci.yml`) |
 
 ---
 

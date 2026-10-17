@@ -1,0 +1,41 @@
+node_modules/
+**/node_modules/
+app/.next/
+app/out/
+.next/
+.turbo/
+.vercel/
+.git/
+.gitignore
+
+# Legacy v1 Streamlit app
+/src/
+/tests/
+/plots/
+/assets/
+/.streamlit/
+/app.py
+/Procfile
+/railway.json
+/requirements.txt
+/packages.txt
+/AGENTS.md
+/openapi.json
+
+# Local dev / caches / logs
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.coverage
+**/*.log
+
+# Docs and specs
+/docs/
+/.Codex/
+/.devcontainer/
+/.github/
+
+# Keep uv lock / env files out of the image
+.env
+.env.local
+.env.*.local
