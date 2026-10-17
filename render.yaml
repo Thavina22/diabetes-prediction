@@ -1,30 +1,27 @@
-# Render blueprint — single container running the Next.js frontend and the
-# FastAPI backend (see Dockerfile). Render sets $PORT; the entrypoint starts
-# FastAPI internally and Next.js as the public server.
+# Render blueprint — FastAPI + ML API only (the frontend is hosted on Vercel).
 #
-# Required memory: 2 GB. The Python stack (scikit-learn + xgboost + shap +
-# pandas) plus the Next.js server does not fit in Render's 512 MB tiers.
+# Deploy order:
+#   1. Apply this blueprint (New -> Blueprint) to create the API service.
+#   2. Copy the service URL into the Vercel project as API_INTERNAL_URL.
+#   3. Redeploy the Vercel project.
+#
+# The free plan has 512 MB RAM, which fits the API on its own but NOT the API and
+# the Next.js server together (use the root Dockerfile on a 2 GB host for that).
 services:
   - type: web
-    name: diabetes-prediction
+    name: diabetes-prediction-api
     runtime: docker
-    dockerfilePath: ./Dockerfile
-    plan: standard
+    dockerContext: .
+    dockerfilePath: ./api/python/Dockerfile
+    plan: free
     region: oregon
-    healthCheckPath: /api/v1/features
+    healthCheckPath: /health
     autoDeploy: true
     envVars:
-      # Same-origin: the browser calls /api/v1/* and Next proxies to FastAPI.
-      - key: NEXT_PUBLIC_API_URL
-        value: ""
-      # Clerk's publishable key is inlined at build time.
-      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-        sync: false
       # Set to "production" once Clerk + Neon are configured.
       - key: ENVIRONMENT
         value: development
-      # Only honoured when ENVIRONMENT != production. Lets the app run with no
-      # database or auth provider. Remove both once Clerk + Neon are wired up.
+      # Only honoured when ENVIRONMENT != production. Remove both once Clerk is wired up.
       - key: DEV_AUTH_BYPASS
         value: "true"
       - key: DEV_USER_ID

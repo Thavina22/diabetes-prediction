@@ -3,7 +3,7 @@
 > **Live (new):** not deployed yet — see [Deployment](#deployment)
 > **Live (legacy v1):** [diabetes-prediction-v0.streamlit.app](https://diabetes-prediction-v0.streamlit.app)
 
-A diabetes risk screening platform that combines clinical rules (ADA 2026, AHA-ACC 2025) with a machine learning model (a **calibrated soft-voting ensemble** — Logistic Regression, SVM, Random Forest, Gradient Boosting and XGBoost over the PIMA dataset) to help people understand their health measurements. Built as a **Next.js + FastAPI monorepo** and shipped as a **single Docker container** (one URL, frontend and API together). Hospital and lab systems can pull results through **FHIR R4 / CDA** exports and a **scoped third-party API**.
+A diabetes risk screening platform that combines clinical rules (ADA 2026, AHA-ACC 2025) with a machine learning model (a **calibrated soft-voting ensemble** — Logistic Regression, SVM, Random Forest, Gradient Boosting and XGBoost over the PIMA dataset) to help people understand their health measurements. Built as a **Next.js + FastAPI monorepo** and deployable either as **one Docker container** or **split** (Next.js on Vercel, the ML API in a 512 MB container). Hospital and lab systems can pull results through **FHIR R4 / CDA** exports and a **scoped third-party API**.
 
 > ⚠️ **Screening and education only — not a medical diagnosis.** Always confirm results with a clinician.
 
@@ -148,7 +148,8 @@ diabetes-prediction/
 ├── docker-compose.yml            # Local Postgres + Redis
 ├── Dockerfile                    # Single-image build (Next.js + FastAPI)
 ├── docker/entrypoint.sh          # Starts uvicorn + Next.js in one container
-├── render.yaml                   # Render blueprint (container host)
+├── deploy/oracle/                # Always-free VM bootstrap + cloud-init
+├── render.yaml                   # Render blueprint (API-only service)
 ├── turbo.json                    # Turborepo task pipeline
 └── package.json                  # Root workspace
 ```
@@ -270,13 +271,44 @@ Open [http://localhost:3000](http://localhost:3000) (frontend) or [http://localh
 
 ---
 
-## Deployment (Docker container)
+## Deployment
 
-The project ships as **one container** (see `Dockerfile`): Next.js is built in
-standalone mode, Python 3.11 runs the FastAPI app beside it, and `docker/entrypoint.sh`
-starts both — FastAPI on an internal port, Next.js as the only public server.
-`next.config.js` proxies `/api/v1/:path*` to the internal API, so there is a single
-URL and no CORS or exposed API service.
+Two supported shapes:
+
+| Shape | Frontend | API | Cost | Use when |
+|-------|----------|-----|------|----------|
+| **Split** | Vercel (free, no card) | Render free (512 MB, no card) | **$0** | You want a public link with no credit card |
+| **Single container** | same container | same container | VM cost | You want one host / full control |
+
+### Split: Vercel (frontend) + Render (ML API)
+
+The frontend runs on Vercel's free Hobby plan and the FastAPI + ML stack runs in a
+512 MB Render container. Vercel's `next.config.js` rewrite proxies `/api/v1/*` to the
+API, so the browser stays same-origin and no CORS is needed.
+
+1. **Deploy the API first.** Render → **New → Blueprint** → pick this repo.
+   `render.yaml` builds `api/python/Dockerfile` as a free Docker web service.
+   Copy the resulting URL, e.g. `https://diabetes-prediction-api.onrender.com`.
+2. **Deploy the frontend.** Import the repo on Vercel and set the project's
+   **Root Directory to `app/`** (Framework preset: Next.js).
+3. Add the API URL as a Vercel environment variable and redeploy:
+
+   ```bash
+   API_INTERNAL_URL=https://<your-api>.onrender.com
+   ```
+
+   Do **not** set `NEXT_PUBLIC_API_URL` — leaving it empty keeps the client
+   same-origin so every call goes through the rewrite.
+
+Notes: the free API sleeps after 15 minutes idle (~1 minute cold start), and
+`ENVIRONMENT=development` + `DEV_AUTH_BYPASS=true` run it without Clerk or a database.
+Add a free Neon Postgres and Clerk keys to enable accounts, history and API keys.
+
+### Single container (one host)
+
+The root `Dockerfile` builds one image containing both: Next.js in standalone mode
+plus Python 3.11 running FastAPI beside it, with `docker/entrypoint.sh` starting
+both and Next.js as the only public server.
 
 ```bash
 # Build and run locally (needs Docker)
@@ -285,7 +317,7 @@ docker run -p 3000:3000 --env ENVIRONMENT=development --env DEV_AUTH_BYPASS=true
 # → http://localhost:3000
 ```
 
-### Deploy to Oracle Cloud (always free, 24 GB)
+#### Deploy to Oracle Cloud (always free, 24 GB)
 
 Oracle's Always Free ARM shape (`VM.Standard.A1.Flex`, 4 OCPU / 24 GB) comfortably
 runs the whole stack and is free with no time limit. It is a normal always-on VM —
@@ -307,13 +339,13 @@ ssh ubuntu@<public-ip> 'APP_DIR=/home/ubuntu/app bash /home/ubuntu/app/deploy/or
 Put real secrets in `/home/ubuntu/app/.env.production` — the bootstrap passes it to
 the container automatically. For HTTPS, put Caddy or nginx in front of port 3000.
 
-> **Why not Vercel?** Vercel's Python functions cap the bundle at 500 MB. The
-> scikit-learn + xgboost + shap stack unpacks to ~1.2 GB, so it cannot be hosted
-> as a serverless function. A container has no such limit.
+> **Why isn't the API on Vercel?** Vercel's Python functions cap the bundle at
+> 500 MB. The scikit-learn + xgboost + shap stack unpacks to ~1.2 GB, so it cannot
+> run as a serverless function — but it fits a 512 MB container on its own.
 
-**Other hosts:** any Docker host works. `render.yaml` is included for a Render
-Blueprint, but it requests a 2 GB instance — Render's 512 MB free tier is too small
-for the ML stack. Railway and Fly.io work the same way (point them at the `Dockerfile`).
+**Other hosts:** any Docker host works. Railway, Fly.io, Hetzner and DigitalOcean all
+accept the root `Dockerfile` unchanged; point them at it and give the container 2 GB.
+`api/python/Dockerfile` is the API-only variant used by the split deployment.
 
 ### Environment variables
 
