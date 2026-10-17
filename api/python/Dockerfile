@@ -18,6 +18,16 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PORT=8000
 
+# Pin BLAS / OpenMP / Numba thread pools. A free-tier instance has a fraction of
+# one CPU, and an unbounded pool spawns ~70 threads with per-thread buffers.
+ENV OMP_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    NUMEXPR_NUM_THREADS=1 \
+    NUMBA_NUM_THREADS=1 \
+    VECLIB_MAXIMUM_THREADS=1 \
+    MALLOC_ARENA_MAX=2
+
 WORKDIR /app
 
 COPY api/python/requirements.txt ./requirements.txt

@@ -39,8 +39,8 @@ The browser only ever talks to the Next.js server. In production `API_BASE_URL` 
 same-origin, and `next.config.js` rewrites `/api/v1/:path*` to the internal
 FastAPI process, so the API is never exposed directly.
 
-**Cost:** Neon, Clerk and Upstash run on free tiers; the container needs **2 GB RAM**
-(the scikit-learn + xgboost + shap stack does not fit smaller instances).
+**Cost:** Neon, Clerk and Upstash run on free tiers. The single-container shape needs
+**2 GB RAM**; the split shape runs the API comfortably in **512 MB**.
 
 ---
 
@@ -179,14 +179,14 @@ Every verdict comes from a single, transparent, offline rules layer (`api/python
 > Database (768 records, 8 features) and shipped as
 > `data/processed/ensemble_model.joblib`. Raw scores are **Platt-calibrated**
 > (`calibrator.joblib`) and paired with **split-conformal 90% intervals**
-> (`conformal_q ≈ 0.70`). SHAP explanations come from the Gradient Boosting
-> member (`best_model.joblib`). All artifacts are produced by
-> `scripts/train_ensemble.py`. It outputs a supplementary risk score only — the
-> clinical rules engine remains the source of truth.
+> (`conformal_q ≈ 0.70`). Tree-SHAP explanations come from the ensemble's XGBoost
+> member via its native `pred_contribs` (no `shap` dependency). All artifacts are
+> produced by `scripts/train_ensemble.py`. It outputs a supplementary risk score
+> only — the clinical rules engine remains the source of truth.
 
 | Model | F1 | AUC | Notes |
 |-------|----|-----|-------|
-| Gradient Boosting (baseline) | 0.592 | 0.823 | SHAP explainer member |
+| Gradient Boosting (baseline) | 0.592 | 0.823 | fallback scorer if the ensemble is missing |
 | **Soft-voting ensemble** | **0.681** | **0.825** | decision threshold 0.26 |
 | **+ Platt calibration (deployed)** | **0.727** | **0.825** | calibrated probability |
 | Conformal interval (90%) | — | — | `q = 0.696`, test coverage 0.883 |
@@ -340,7 +340,7 @@ Put real secrets in `/home/ubuntu/app/.env.production` — the bootstrap passes 
 the container automatically. For HTTPS, put Caddy or nginx in front of port 3000.
 
 > **Why isn't the API on Vercel?** Vercel's Python functions cap the bundle at
-> 500 MB. The scikit-learn + xgboost + shap stack unpacks to ~1.2 GB, so it cannot
+> 500 MB. The scikit-learn + XGBoost stack unpacks to roughly 1 GB, so it cannot
 > run as a serverless function — but it fits a 512 MB container on its own.
 
 **Other hosts:** any Docker host works. Railway, Fly.io, Hetzner and DigitalOcean all
@@ -441,7 +441,7 @@ Frontend unit (`vitest`) and E2E (`playwright`) suites are wired in
 | Database | Neon Postgres (serverless) |
 | Auth | Clerk |
 | Rate limiting | Upstash Redis |
-| ML | scikit-learn, XGBoost, SHAP |
+| ML | scikit-learn, XGBoost (native tree-SHAP) |
 | PDF | reportlab (server), @react-pdf/renderer (client) |
 | PWA | next-pwa (Workbox), idb |
 | Deploy | Docker (single container; Render blueprint included) |

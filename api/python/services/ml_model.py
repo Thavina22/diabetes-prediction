@@ -8,8 +8,9 @@ Pipeline
     -> Platt sigmoid calibration -> calibrated probability
     -> split-conformal interval  -> uncertainty_low/high (90%)
 
-The Gradient Boosting model is retained purely as the SHAP explainer (tree
-attributions are cheap and stable).
+Tree attributions come from the ensemble's XGBoost member via its native
+`pred_contribs` (exact TreeSHAP), which avoids importing shap/numba/matplotlib
+and keeps the runtime image roughly 130 MB smaller.
 
 This is a baseline screening model trained on the PIMA Indians Diabetes
 Database (768 records, 8 features). It is NOT clinically validated and is used
@@ -21,12 +22,13 @@ gracefully if its artifact is missing.
 """
 
 import json
+import warnings
 from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
-import pandas as pd
 import joblib
+from xgboost import DMatrix
 
 from config import get_settings
 
@@ -51,11 +53,11 @@ _MEDIANS = {
     "Age": 29.0,
 }
 
-_model = None          # Gradient Boosting — SHAP explainer only
+_model = None          # Gradient Boosting — fallback scorer if the ensemble is missing
 _ensemble = None       # soft-voting ensemble — scoring
 _calibrator = None     # Platt sigmoid
 _scaler = None
-_explainer = None
+_xgb_booster = None    # XGBoost member — tree-SHAP attributions
 _meta: Optional[dict] = None
 
 _MISSING = object()
@@ -91,7 +93,7 @@ def _load_artifact(filename: str):
 
 
 def get_model():
-    """Lazy-load the Gradient Boosting model (SHAP explainer)."""
+    """Lazy-load the Gradient Boosting model (fallback scorer)."""
     global _model
     if _model is None:
         _model = _load_artifact("best_model.joblib")
@@ -137,17 +139,22 @@ def _get_meta() -> dict:
     return _meta
 
 
-def _get_explainer():
-    """Lazy-load a SHAP TreeExplainer for the GB model. Returns None if unavailable."""
-    global _explainer
-    if _explainer is None:
-        try:
-            import shap
+def _get_booster():
+    """Lazy-load the ensemble's XGBoost booster for tree-SHAP attributions.
 
-            _explainer = shap.TreeExplainer(get_model())
+    XGBoost's native ``pred_contribs`` computes exact TreeSHAP values, so we do
+    not need the shap package (or its numba/matplotlib chain). Returns None when
+    the ensemble or its XGBoost member is unavailable.
+    """
+    global _xgb_booster
+    if _xgb_booster is None:
+        try:
+            ensemble = _get_ensemble()
+            member = ensemble.named_estimators_.get("xgb") if ensemble is not None else None
+            _xgb_booster = member.get_booster() if member is not None else _MISSING
         except Exception:
-            _explainer = False
-    return _explainer or None
+            _xgb_booster = _MISSING
+    return None if _xgb_booster is _MISSING else _xgb_booster
 
 
 def _to_pima_vector(input_data: Any) -> dict:
@@ -188,8 +195,11 @@ def _prepare(input_data: Any) -> tuple[np.ndarray, list[str], dict]:
     scaler = _get_scaler()
     if scaler is not None:
         try:
-            # Pass a labelled frame so the scaler (fit with feature names) is happy.
-            x = scaler.transform(pd.DataFrame(x, columns=PIMA_FEATURES))
+            # The scaler was fitted on a labelled frame; a plain array is
+            # numerically identical but raises a feature-name warning.
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                x = scaler.transform(x)
         except Exception:
             pass  # fall back to raw features rather than failing inference
     return x, imputed, raw
@@ -247,24 +257,27 @@ def predict_risk(input_data: Any, threshold: Optional[float] = None) -> dict:
 
 
 def predict_risk_with_shap(input_data: Any, threshold: Optional[float] = None) -> dict:
-    """Return the model risk score plus SHAP feature attributions."""
+    """Return the model risk score plus tree-SHAP feature attributions.
+
+    Contributions are in margin (log-odds) space and sum with ``shap_base_value``
+    to the XGBoost member's raw margin.
+    """
     result = predict_risk(input_data, threshold)
 
-    explainer = _get_explainer()
-    if explainer is None:
+    booster = _get_booster()
+    if booster is None:
         return result
 
     try:
         x, _, _ = _prepare(input_data)
-        shap_values = explainer.shap_values(x)
-        if isinstance(shap_values, list):
-            shap_values = shap_values[1] if len(shap_values) > 1 else shap_values[0]
-        values = np.array(shap_values).reshape(-1)
-        result["shap_values"] = {feat: float(val) for feat, val in zip(PIMA_FEATURES, values)}
-        base = getattr(explainer, "expected_value", 0.0)
-        if isinstance(base, (list, np.ndarray)):
-            base = base[1] if len(base) > 1 else base[0]
-        result["shap_base_value"] = float(base)
+        contribs = np.asarray(
+            booster.predict(DMatrix(x), pred_contribs=True), dtype=float
+        ).reshape(-1)
+        # The final column is the bias term; the rest are per-feature contributions.
+        result["shap_values"] = {
+            feat: float(val) for feat, val in zip(PIMA_FEATURES, contribs[:-1])
+        }
+        result["shap_base_value"] = float(contribs[-1])
     except Exception:
         pass
 
