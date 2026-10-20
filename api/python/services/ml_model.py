@@ -63,19 +63,28 @@ _meta: Optional[dict] = None
 _MISSING = object()
 
 
+
 def _artifact_dir() -> Optional[Path]:
     settings = get_settings()
+
     candidates = [
         Path(settings.MODEL_PATH),
-        Path(__file__).resolve().parents[1] / "artifacts" / "best_model.joblib",
-        Path(__file__).resolve().parents[3] / "data" / "processed" / "best_model.joblib",
-        Path("data/processed/best_model.joblib"),
-        Path("../data/processed/best_model.joblib"),
+        Path(__file__).resolve().parents[1] / "artifacts",
+        Path(__file__).resolve().parents[2] / "data" / "processed",
+        Path.cwd() / "data" / "processed",
+        Path.cwd().parent / "data" / "processed",
     ]
-    for c in candidates:
-        if c.is_file():
-            return c.parent
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.parent
+
+        if candidate.is_dir():
+            if (candidate / "best_model.joblib").is_file():
+                return candidate
+
     return None
+
 
 
 def _load_artifact(filename: str):
