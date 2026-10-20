@@ -46,14 +46,16 @@ async def create_screening(
                 result.created_at = row["created_at"]
 
         return result
+    
     except HTTPException:
-    raise
-except Exception as e:
-    logger.exception("Screening failed")
-    raise HTTPException(
-        status_code=500,
-        detail=f"Screening failed: {str(e)}"
-    )
+        raise
+    except Exception as e:
+        logger.exception("Screening failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Screening failed: {str(e)}"
+        ) from e
+
 
 
 @router.get("/screening/{screening_id}", response_model=ScreeningResult)
