@@ -55,7 +55,7 @@ const nextConfig = {
     return [
       {
         source: '/api/v1/:path*',
-        destination: `${apiInternalUrl}/api/v1/:path*`,
+        destination: 'https://diabetes-prediction-api-9hx8.onrender.com/api/v1/:path*',
       },
     ];
   },
