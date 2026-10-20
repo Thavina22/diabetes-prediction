@@ -47,8 +47,8 @@ async def create_screening(
 
         return result
     except HTTPException:
-        raise
-    except Exception as e:
+    raise
+except Exception as e:
     logger.exception("Screening failed")
     raise HTTPException(
         status_code=500,
