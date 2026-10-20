@@ -1,6 +1,6 @@
 # Diabetes Risk Intelligence
 
-> **Live (new):** not deployed yet — see [Deployment](#deployment)
+> **Live (new):** [diabetes-prediction-ka8j5q753-thavina-s-projects.vercel.app](https://diabetes-prediction-ka8j5q753-thavina-s-projects.vercel.app/)
 > **Live (legacy v1):** [diabetes-prediction-v0.streamlit.app](https://diabetes-prediction-v0.streamlit.app)
 
 A diabetes risk screening platform that combines clinical rules (ADA 2026, AHA-ACC 2025) with a machine learning model (a **calibrated soft-voting ensemble** — Logistic Regression, SVM, Random Forest, Gradient Boosting and XGBoost over the PIMA dataset) to help people understand their health measurements. Built as a **Next.js + FastAPI monorepo** and deployable either as **one Docker container** or **split** (Next.js on Vercel, the ML API in a 512 MB container). Hospital and lab systems can pull results through **FHIR R4 / CDA** exports and a **scoped third-party API**.
@@ -286,9 +286,12 @@ The frontend runs on Vercel's free Hobby plan and the FastAPI + ML stack runs in
 512 MB Render container. Vercel's `next.config.js` rewrite proxies `/api/v1/*` to the
 API, so the browser stays same-origin and no CORS is needed.
 
-1. **Deploy the API first.** Render → **New → Blueprint** → pick this repo.
+**Live demo:** https://diabetes-prediction-ka8j5q753-thavina-s-projects.vercel.app/  
+**API:** `https://diabetes-prediction-api-lemv.onrender.com` (deployed on Render free tier)
+
+1. **Deploy the API first.** Render → **New +** → **Blueprint** → pick this repo.
    `render.yaml` builds `api/python/Dockerfile` as a free Docker web service.
-   Copy the resulting URL, e.g. `https://diabetes-prediction-api.onrender.com`.
+   Copy the resulting URL, e.g. `https://diabetes-prediction-api-lemv.onrender.com`.
 2. **Deploy the frontend.** Import the repo on Vercel and set the project's
    **Root Directory to `app/`** (Framework preset: Next.js).
 3. Add the API URL as a Vercel environment variable and redeploy:
