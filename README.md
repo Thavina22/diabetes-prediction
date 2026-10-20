@@ -1,5 +1,7 @@
 # Diabetes Risk Intelligence
 
+<img src="assets/hero.svg" alt="Diabetes Risk Intelligence" width="100%" max-width="800"/>
+
 > **Live (new):** [diabetes-prediction-ka8j5q753-thavina-s-projects.vercel.app](https://diabetes-prediction-ka8j5q753-thavina-s-projects.vercel.app/)
 > **Live (legacy v1):** [diabetes-prediction-v0.streamlit.app](https://diabetes-prediction-v0.streamlit.app)
 
@@ -10,6 +12,8 @@ A diabetes risk screening platform that combines clinical rules (ADA 2026, AHA-A
 ---
 
 ## Architecture
+
+<img src="data/sample_report.png" alt="Sample Screening Report" width="100%" max-width="700" style="display:block;margin:20px 0"/>
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -190,6 +194,14 @@ Every verdict comes from a single, transparent, offline rules layer (`api/python
 | **Soft-voting ensemble** | **0.681** | **0.825** | decision threshold 0.26 |
 | **+ Platt calibration (deployed)** | **0.727** | **0.825** | calibrated probability |
 | Conformal interval (90%) | — | — | `q = 0.696`, test coverage 0.883 |
+
+### Model Evaluation Plots
+
+<img src="plots/5_model_comparison.png" alt="Model Comparison" width="100%" max-width="700" style="display:block;margin:10px 0"/>
+
+<img src="plots/7_feature_importance.png" alt="Feature Importance" width="100%" max-width="700" style="display:block;margin:10px 0"/>
+
+<img src="plots/6_roc_curves.png" alt="ROC Curves" width="100%" max-width="700" style="display:block;margin:10px 0"/>
 
 ---
 
