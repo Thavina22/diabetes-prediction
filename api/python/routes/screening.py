@@ -7,7 +7,9 @@ from services.screening_engine import build_result as _build_result
 from db.connection import get_connection, get_transaction, is_db_ready
 from db.repositories.users import ensure_user, set_rls_user
 from auth.clerk import get_current_user_id
+import logging
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -47,7 +49,11 @@ async def create_screening(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Screening failed: {str(e)}")
+    logger.exception("Screening failed")
+    raise HTTPException(
+        status_code=500,
+        detail=f"Screening failed: {str(e)}"
+    )
 
 
 @router.get("/screening/{screening_id}", response_model=ScreeningResult)
